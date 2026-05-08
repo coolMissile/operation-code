@@ -1,9 +1,0 @@
-{
-  "name": "lkh",
-  "url": "https://github.com/davidar/LKH3",
-  "language": "C",
-  "algorithm_type": "iterative_improvement",
-  "main_file": "LKH.c",
-  "description": "LKH-3: Lin-Kernighan heuristic for TSP and related problems",
-  "commit_hash": ""
-}

@@ -1,9 +1,0 @@
-{
-  "name": "pyconcorde",
-  "url": "https://github.com/digital-brain-sh/pyconcorde",
-  "language": "Python",
-  "algorithm_type": "exact",
-  "main_file": "pyconcorde/concorde.py",
-  "description": "Python wrapper around the Concorde TSP solver",
-  "commit_hash": ""
-}

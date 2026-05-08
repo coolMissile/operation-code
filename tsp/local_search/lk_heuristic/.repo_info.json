@@ -1,9 +1,0 @@
-{
-  "name": "lk-heuristic",
-  "url": "https://github.com/kikocastroneto/lk_heuristic",
-  "language": "Python",
-  "algorithm_type": "iterative_improvement",
-  "main_file": "lk_heuristic.py",
-  "description": "Lin-Kernighan Heuristic implemented in Python with Numba",
-  "commit_hash": ""
-}
