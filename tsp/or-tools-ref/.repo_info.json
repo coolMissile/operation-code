@@ -1,0 +1,9 @@
+{
+  "name": "or-tools-tsp",
+  "url": "https://github.com/google/or-tools.git",
+  "language": "Python",
+  "algorithm_type": "heuristic",
+  "main_file": "ortools/constraint_solver/samples/tsp.py",
+  "description": "",
+  "commit_hash": "79e340fd50e1cae499bd6c9035486cf06c8261a5"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "pomo",
+  "url": "https://github.com/yd-kwon/POMO",
+  "language": "Python",
+  "algorithm_type": "learning_based",
+  "main_file": "problems/tsp/pomo_tsp.py",
+  "description": "POMO: Policy Optimization with Multiple Optima for TSP",
+  "commit_hash": ""
+}

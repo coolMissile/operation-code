@@ -1,119 +1,121 @@
-# import os
-# os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-import torch
-from torch.distributions import Categorical
+import random
 
-class ACO():
 
-    def __init__(self, 
-                 distances,
-                 n_ants=30, 
-                 decay=0.9,
-                 alpha=1,
-                 beta=1,
-                 device='cpu'
-                 ):
-        
-        self.problem_size = len(distances)
-        self.distances  = torch.tensor(distances, device=device) if not isinstance(distances, torch.Tensor) else distances
-        self.n_ants = n_ants
-        self.decay = decay
-        self.alpha = alpha
+class Graph(object):
+    def __init__(self, cost_matrix: list, rank: int):
+        """
+        :param cost_matrix:
+        :param rank: rank of the cost matrix
+        """
+        self.matrix = cost_matrix
+        self.rank = rank
+        # noinspection PyUnusedLocal
+        self.pheromone = [[1 / (rank * rank) for j in range(rank)] for i in range(rank)]
+
+
+class ACO(object):
+    def __init__(self, ant_count: int, generations: int, alpha: float, beta: float, rho: float, q: int,
+                 strategy: int):
+        """
+        :param ant_count:
+        :param generations:
+        :param alpha: relative importance of pheromone
+        :param beta: relative importance of heuristic information
+        :param rho: pheromone residual coefficient
+        :param q: pheromone intensity
+        :param strategy: pheromone update strategy. 0 - ant-cycle, 1 - ant-quality, 2 - ant-density
+        """
+        self.Q = q
+        self.rho = rho
         self.beta = beta
-        
-        self.pheromone = torch.ones_like(self.distances)
-        self.heuristic = 1.0 / self.distances.clone() 
-        self.heuristic.fill_diagonal_(0)  
-        self.shortest_path = None
-        self.lowest_cost = float('inf')
+        self.alpha = alpha
+        self.ant_count = ant_count
+        self.generations = generations
+        self.update_strategy = strategy
 
-        self.device = device
+    def _update_pheromone(self, graph: Graph, ants: list):
+        for i, row in enumerate(graph.pheromone):
+            for j, col in enumerate(row):
+                graph.pheromone[i][j] *= self.rho
+                for ant in ants:
+                    graph.pheromone[i][j] += ant.pheromone_delta[i][j]
 
-    @torch.no_grad()
-    def run(self, n_iterations):
-        for _ in range(n_iterations):
-            paths = self.gen_path(require_prob=False)
-            costs = self.gen_path_costs(paths)
-            
-            best_cost, best_idx = costs.min(dim=0)
-            if best_cost < self.lowest_cost:
-                self.shortest_path = paths[:, best_idx]
-                self.lowest_cost = best_cost
-            
-            self.update_pheronome(paths, costs)
+    # noinspection PyProtectedMember
+    def solve(self, graph: Graph):
+        """
+        :param graph:
+        """
+        best_cost = float('inf')
+        best_solution = []
+        for gen in range(self.generations):
+            # noinspection PyUnusedLocal
+            ants = [_Ant(self, graph) for i in range(self.ant_count)]
+            for ant in ants:
+                for i in range(graph.rank - 1):
+                    ant._select_next()
+                ant.total_cost += graph.matrix[ant.tabu[-1]][ant.tabu[0]]
+                if ant.total_cost < best_cost:
+                    best_cost = ant.total_cost
+                    best_solution = [] + ant.tabu
+                # update pheromone
+                ant._update_pheromone_delta()
+            self._update_pheromone(graph, ants)
+            # print('generation #{}, best cost: {}, path: {}'.format(gen, best_cost, best_solution))
+        return best_solution, best_cost
 
-        return self.lowest_cost
-       
-    @torch.no_grad()
-    def update_pheronome(self, paths, costs):
-        '''
-        Args:
-            paths: torch tensor with shape (problem_size, n_ants)
-            costs: torch tensor with shape (n_ants,)
-        '''
-        self.pheromone = self.pheromone * self.decay 
-        for i in range(self.n_ants):
-            path = paths[:, i]
-            cost = costs[i]
-            self.pheromone[path, torch.roll(path, shifts=1)] += 1.0/cost
-            self.pheromone[torch.roll(path, shifts=1), path] += 1.0/cost
 
-    @torch.no_grad()
-    def gen_path_costs(self, paths):
-        '''
-        Args:
-            paths: torch tensor with shape (problem_size, n_ants)
-        Returns:
-                Lengths of paths: torch tensor with shape (n_ants,)
-        '''
-        assert paths.shape == (self.problem_size, self.n_ants)
-        u = paths.T # shape: (n_ants, problem_size)
-        v = torch.roll(u, shifts=1, dims=1)  # shape: (n_ants, problem_size)
-        assert (self.distances[u, v] > 0).all()
-        return torch.sum(self.distances[u, v], dim=1)
+class _Ant(object):
+    def __init__(self, aco: ACO, graph: Graph):
+        self.colony = aco
+        self.graph = graph
+        self.total_cost = 0.0
+        self.tabu = []  # tabu list
+        self.pheromone_delta = []  # the local increase of pheromone
+        self.allowed = [i for i in range(graph.rank)]  # nodes which are allowed for the next selection
+        self.eta = [[0 if i == j else 1 / graph.matrix[i][j] for j in range(graph.rank)] for i in
+                    range(graph.rank)]  # heuristic information
+        start = random.randint(0, graph.rank - 1)  # start from any node
+        self.tabu.append(start)
+        self.current = start
+        self.allowed.remove(start)
 
-    def gen_path(self, require_prob=False):
-        '''
-        Tour contruction for all ants
-        Returns:
-            paths: torch tensor with shape (problem_size, n_ants), paths[:, i] is the constructed tour of the ith ant
-            log_probs: torch tensor with shape (problem_size, n_ants), log_probs[i, j] is the log_prob of the ith action of the jth ant
-        '''
-        start = torch.randint(low=0, high=self.problem_size, size=(self.n_ants,), device=self.device)
-        mask = torch.ones(size=(self.n_ants, self.problem_size), device=self.device)
-        mask[torch.arange(self.n_ants, device=self.device), start] = 0
-        
-        paths_list = [] # paths_list[i] is the ith move (tensor) for all ants
-        paths_list.append(start)
-        
-        log_probs_list = [] # log_probs_list[i] is the ith log_prob (tensor) for all ants' actions
-        
-        prev = start
-        for _ in range(self.problem_size-1):
-            actions, log_probs = self.pick_move(prev, mask, require_prob)
-            paths_list.append(actions)
-            if require_prob:
-                log_probs_list.append(log_probs)
-                mask = mask.clone()
-            prev = actions
-            mask[torch.arange(self.n_ants, device=self.device), actions] = 0
-        
-        if require_prob:
-            return torch.stack(paths_list), torch.stack(log_probs_list)
-        else:
-            return torch.stack(paths_list)
-        
-    def pick_move(self, prev, mask, require_prob):
-        '''
-        Args:
-            prev: tensor with shape (n_ants,), previous nodes for all ants
-            mask: bool tensor with shape (n_ants, p_size), masks (0) for the visited cities
-        '''
-        pheromone = self.pheromone[prev] # shape: (n_ants, p_size)
-        heuristic = self.heuristic[prev] # shape: (n_ants, p_size)
-        dist = ((pheromone ** self.alpha) * (heuristic ** self.beta) * mask) # shape: (n_ants, p_size)
-        dist = Categorical(dist)
-        actions = dist.sample() # shape: (n_ants,)
-        log_probs = dist.log_prob(actions) if require_prob else None # shape: (n_ants,)
-        return actions, log_probs
-        
+    def _select_next(self):
+        denominator = 0
+        for i in self.allowed:
+            denominator += self.graph.pheromone[self.current][i] ** self.colony.alpha * self.eta[self.current][
+                                                                                            i] ** self.colony.beta
+        # noinspection PyUnusedLocal
+        probabilities = [0 for i in range(self.graph.rank)]  # probabilities for moving to a node in the next step
+        for i in range(self.graph.rank):
+            try:
+                self.allowed.index(i)  # test if allowed list contains i
+                probabilities[i] = self.graph.pheromone[self.current][i] ** self.colony.alpha * \
+                    self.eta[self.current][i] ** self.colony.beta / denominator
+            except ValueError:
+                pass  # do nothing
+        # select next node by probability roulette
+        selected = 0
+        rand = random.random()
+        for i, probability in enumerate(probabilities):
+            rand -= probability
+            if rand <= 0:
+                selected = i
+                break
+        self.allowed.remove(selected)
+        self.tabu.append(selected)
+        self.total_cost += self.graph.matrix[self.current][selected]
+        self.current = selected
+
+    # noinspection PyUnusedLocal
+    def _update_pheromone_delta(self):
+        self.pheromone_delta = [[0 for j in range(self.graph.rank)] for i in range(self.graph.rank)]
+        for _ in range(1, len(self.tabu)):
+            i = self.tabu[_ - 1]
+            j = self.tabu[_]
+            if self.colony.update_strategy == 1:  # ant-quality system
+                self.pheromone_delta[i][j] = self.colony.Q
+            elif self.colony.update_strategy == 2:  # ant-density system
+                # noinspection PyTypeChecker
+                self.pheromone_delta[i][j] = self.colony.Q / self.graph.matrix[i][j]
+            else:  # ant-cycle system
+                self.pheromone_delta[i][j] = self.colony.Q / self.total_cost

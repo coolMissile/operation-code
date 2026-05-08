@@ -1,0 +1,6 @@
+*.o
+*.wasm
+.DS_Store
+/LKH
+/LKH-*.tgz
+/route
