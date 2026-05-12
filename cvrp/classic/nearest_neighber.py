@@ -36,7 +36,6 @@ class CVRPProblem:
                     self.distances[i][j] = round(sqrt(dx*dx + dy*dy))
 
 class _PeekQueue:
-    """允许查看但不移除元素的自定义队列"""
     def __init__(self, items):
         self.posleft = -1
         self.posright = 0
@@ -62,8 +61,6 @@ class _PeekQueue:
         return self.items[self.posleft]
 
 class NearestNeighborSolver:
-    """最近邻CVRP求解器"""
-    
     def __init__(self, parallel_routes=1, seed_method='farthest', 
                  insert_at_end=False, verbose=False):
         """
@@ -86,7 +83,7 @@ class NearestNeighborSolver:
         
         N = len(D)
         
-        # 1. 为每个客户构建最近邻列表
+        # 为每个客户构建最近邻列表
         node_nearest_neighbors = [None] * N
         for i in range(N):
             # 按距离排序，排除自己
@@ -94,11 +91,11 @@ class NearestNeighborSolver:
             neighbors.sort(key=lambda x: x[1])
             node_nearest_neighbors[i] = _PeekQueue(neighbors)
         
-        # 2. 记录已服务客户
+        # 记录已服务客户
         served = [False] * N
         served[0] = True  # 仓库
         
-        # 3. 初始化路径
+        # 初始化路径
         routes = []
         current_routes = [None] * self.parallel_routes
         route_demands = [0.0] * self.parallel_routes
@@ -145,7 +142,7 @@ class NearestNeighborSolver:
             else:
                 raise ValueError(f"不支持的seed_method: {self.seed_method}")
         
-        # 4. 主求解循环
+        # 主求解循环
         k = 0
         while not all(served):
             if self.verbose:

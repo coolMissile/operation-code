@@ -64,11 +64,11 @@ def basic_savings_algorithm(points, demands, capacity, D):
     
     # 步骤2: 计算节约值
     savings_list = calculate_savings(D)
-    print(f"\n计算了 {len(savings_list)} 个节约值")
-    print(f"前5个节约值:")
-    for i in range(min(5, len(savings_list))):
-        s, c1, c2 = savings_list[i]
-        print(f"  s({c1},{c2}) = {s:.2f}")
+    # print(f"\n计算了 {len(savings_list)} 个节约值")
+    # print(f"前5个节约值:")
+    # for i in range(min(5, len(savings_list))):
+    #     s, c1, c2 = savings_list[i]
+    #     print(f"  s({c1},{c2}) = {s:.2f}")
     
     # 步骤3: 按节约值从大到小尝试合并路径
     print(f"\n开始合并路径...")
@@ -102,7 +102,6 @@ def basic_savings_algorithm(points, demands, capacity, D):
         if not (i_is_endpoint and j_is_endpoint):
             continue
         
-        # 确定如何连接两条路径
         new_route = []
         
         # 情况1: i在route_i的末尾，j在route_j的开头
@@ -119,7 +118,7 @@ def basic_savings_algorithm(points, demands, capacity, D):
         
         # 情况4: i在route_i的开头，j在route_j的开头
         elif route_i[1] == customer_i and route_j[1] == customer_j:
-            new_route = [0] + route_i[:0:-1] + route_j[1:]  # 0 + 反转的i...0 + j...0
+            new_route = [0] + route_i[-2:0:-1] + route_j[1:]  # 0 + 反转的i.. + j..0
         
         if not new_route:
             continue
@@ -146,22 +145,20 @@ def basic_savings_algorithm(points, demands, capacity, D):
         
         # 更新数据
         routes[route_i_idx] = new_route
-        routes[route_j_idx] = None  # 标记为已删除
+        routes[route_j_idx] = None  
         route_demands[route_i_idx] = total_demand
         route_demands[route_j_idx] = 0
-        
-        # 更新客户到路径的映射
-        for customer in new_route[1:-1]:  # 不包括首尾的0
+       
+        for customer in new_route[1:-1]:  
             customer_to_route[customer] = route_i_idx
         
-        # 标记被删除路径的客户
         for customer in route_j[1:-1]:
             if customer in customer_to_route and customer_to_route[customer] == route_j_idx:
                 customer_to_route[customer] = route_i_idx
     
-    # 移除被标记为删除的路径
+    # 清理空路径
     valid_routes = [route for route in routes if route is not None]
-    valid_demands = [demand for i, demand in enumerate(route_demands) if routes[i] is not None]
+    
     
     # 计算结果
     total_distance = 0
